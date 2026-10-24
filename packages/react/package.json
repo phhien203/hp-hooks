@@ -2,15 +2,15 @@
   "name": "@hp-hooks/react",
   "version": "0.1.0",
   "description": "A collection of reusable, type-safe hooks",
-  "homepage": "https://github.com/author/library#readme",
+  "homepage": "https://github.com/phhien203/hp-hooks#readme",
   "bugs": {
-    "url": "https://github.com/author/library/issues"
+    "url": "https://github.com/phhien203/hp-hooks/issues"
   },
   "license": "MIT",
   "author": "Hien Pham <hi@hien.page>",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/author/library.git"
+    "url": "git+https://github.com/phhien203/hp-hooks"
   },
   "files": [
     "dist"

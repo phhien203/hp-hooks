@@ -1,5 +1,10 @@
 # @hp-hooks/react
 
+![React](https://img.shields.io/badge/React-18%20%7C%2019-61DAFB?logo=react&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript-6.0.2-3178C6?logo=typescript&logoColor=white)
+![Vite+](https://img.shields.io/badge/Vite%2B-monorepo-646CFF?logo=vite&logoColor=white)
+![pnpm](https://img.shields.io/badge/pnpm-12-F69220?logo=pnpm&logoColor=white)
+
 A collection of reusable, type-safe React hooks built with TypeScript.
 
 ## Installation
