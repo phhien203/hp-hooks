@@ -1,0 +1,59 @@
+name: Publish to npm
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: npm-publish-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: npm
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
+        with:
+          node-version: '24'
+          cache: false
+          run-install: true
+
+      - name: Verify release tag matches package version
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          package_version="$(node -p "require('./packages/react/package.json').version")"
+          test "$RELEASE_TAG" = "v$package_version" || {
+            echo "Release tag $RELEASE_TAG does not match package version v$package_version"
+            exit 1
+          }
+
+      - name: Install Chromium
+        run: vp exec --filter @hp-hooks/react -- playwright install --with-deps chromium
+
+      - name: Check code quality
+        run: vp check
+
+      - name: Run browser tests
+        run: vp -C packages/react test
+
+      - name: Build package
+        run: vp -C packages/react pack
+
+      - name: Inspect package contents
+        working-directory: packages/react
+        run: npm pack --dry-run
+
+      - name: Publish package
+        working-directory: packages/react
+        run: npm publish --access public
