@@ -4,9 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "ready": "vp check && vp run -r test && vp run -r build",
-    "dev": "vp run website#dev",
-    "prepare": "vp config"
+    "dev": "vp -C apps/playground dev",
+    "build": "vp -C packages/react pack && apps/playground build",
+    "test": "vp -C packages/react test",
+    "check": "vp check"
   },
   "devDependencies": {
     "vite-plus": "catalog:"
