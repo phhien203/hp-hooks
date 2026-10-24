@@ -1,0 +1,266 @@
+import { afterEach, describe, expect, it, vi } from 'vite-plus/test'
+import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
+
+import { useBattery } from './useBattery'
+
+class FakeBatteryManager extends EventTarget {
+  level = 0.8
+  charging = true
+  chargingTime = 120
+  dischargingTime = Infinity
+}
+
+const availableState = {
+  supported: true,
+  loading: false,
+  level: 0.8,
+  charging: true,
+  chargingTime: 120,
+  dischargingTime: Infinity,
+}
+
+const unavailableState = {
+  supported: false,
+  loading: false,
+  level: null,
+  charging: null,
+  chargingTime: null,
+  dischargingTime: null,
+}
+
+function mockGetBattery(getBattery: () => Promise<FakeBatteryManager>) {
+  const mockedGetBattery = vi.fn(getBattery)
+
+  Object.defineProperty(navigator, 'getBattery', {
+    configurable: true,
+    value: mockedGetBattery,
+  })
+
+  return mockedGetBattery
+}
+
+const originalGetBattery = Object.getOwnPropertyDescriptor(
+  navigator,
+  'getBattery',
+)
+
+afterEach(() => {
+  cleanup()
+
+  if (originalGetBattery) {
+    Object.defineProperty(navigator, 'getBattery', originalGetBattery)
+  } else {
+    delete (navigator as Navigator & { getBattery?: unknown }).getBattery
+  }
+})
+
+describe('useBattery', () => {
+  it('returns an unavailable state when the Battery Status API is missing', async () => {
+    Object.defineProperty(navigator, 'getBattery', {
+      configurable: true,
+      value: undefined,
+    })
+
+    const { result } = renderHook(() => useBattery())
+
+    await waitFor(() => {
+      expect(result.current).toEqual(unavailableState)
+    })
+  })
+
+  it('reports loading until the battery request resolves', async () => {
+    const manager = new FakeBatteryManager()
+    let resolveBattery!: (manager: FakeBatteryManager) => void
+    const batteryRequest = new Promise<FakeBatteryManager>((resolve) => {
+      resolveBattery = resolve
+    })
+
+    mockGetBattery(() => batteryRequest)
+
+    const { result } = renderHook(() => useBattery())
+
+    expect(result.current).toEqual({
+      supported: true,
+      loading: true,
+      level: null,
+      charging: null,
+      chargingTime: null,
+      dischargingTime: null,
+    })
+
+    await act(async () => {
+      resolveBattery(manager)
+      await batteryRequest
+    })
+
+    await waitFor(() => {
+      expect(result.current).toEqual(availableState)
+    })
+  })
+
+  it('returns the current battery state when the request resolves', async () => {
+    const manager = new FakeBatteryManager()
+
+    mockGetBattery(() => Promise.resolve(manager))
+
+    const { result } = renderHook(() => useBattery())
+
+    await waitFor(() => {
+      expect(result.current).toEqual(availableState)
+    })
+  })
+
+  it('updates when the battery manager dispatches change events', async () => {
+    const manager = new FakeBatteryManager()
+
+    mockGetBattery(() => Promise.resolve(manager))
+
+    const { result } = renderHook(() => useBattery())
+
+    await waitFor(() => {
+      expect(result.current).toEqual(availableState)
+    })
+
+    act(() => {
+      manager.level = 0.4
+      manager.dispatchEvent(new Event('levelchange'))
+    })
+    expect(result.current.level).toBe(0.4)
+
+    act(() => {
+      manager.charging = false
+      manager.dispatchEvent(new Event('chargingchange'))
+    })
+    expect(result.current.charging).toBe(false)
+
+    act(() => {
+      manager.chargingTime = Infinity
+      manager.dispatchEvent(new Event('chargingtimechange'))
+    })
+    expect(result.current.chargingTime).toBe(Infinity)
+
+    act(() => {
+      manager.dischargingTime = 3_600
+      manager.dispatchEvent(new Event('dischargingtimechange'))
+    })
+    expect(result.current.dischargingTime).toBe(3_600)
+  })
+
+  it('shares one connection and disconnects after the last subscriber leaves', async () => {
+    const manager = new FakeBatteryManager()
+    const addEventListener = vi.spyOn(manager, 'addEventListener')
+    const removeEventListener = vi.spyOn(manager, 'removeEventListener')
+    const getBattery = mockGetBattery(() => Promise.resolve(manager))
+
+    const first = renderHook(() => useBattery())
+    const second = renderHook(() => useBattery())
+
+    await waitFor(() => {
+      expect(second.result.current).toEqual(availableState)
+    })
+
+    expect(getBattery).toHaveBeenCalledTimes(1)
+    expect(addEventListener).toHaveBeenCalledTimes(4)
+
+    first.unmount()
+    expect(removeEventListener).not.toHaveBeenCalled()
+
+    second.unmount()
+    expect(removeEventListener).toHaveBeenCalledTimes(4)
+  })
+
+  it('does not publish the result of a request after its subscriber leaves', async () => {
+    const manager = new FakeBatteryManager()
+    const addEventListener = vi.spyOn(manager, 'addEventListener')
+    let resolveBattery!: (manager: FakeBatteryManager) => void
+    const batteryRequest = new Promise<FakeBatteryManager>((resolve) => {
+      resolveBattery = resolve
+    })
+
+    mockGetBattery(() => batteryRequest)
+
+    const battery = renderHook(() => useBattery())
+    battery.unmount()
+
+    await act(async () => {
+      resolveBattery(manager)
+      await batteryRequest
+      await Promise.resolve()
+    })
+
+    expect(addEventListener).not.toHaveBeenCalled()
+  })
+
+  it('reports an unavailable state after a rejected request and retries later', async () => {
+    const manager = new FakeBatteryManager()
+    let attempt = 0
+    const getBattery = mockGetBattery(() => {
+      attempt++
+
+      return attempt === 1
+        ? Promise.reject(new Error('Battery permission denied'))
+        : Promise.resolve(manager)
+    })
+
+    const first = renderHook(() => useBattery())
+
+    await waitFor(() => {
+      expect(first.result.current).toEqual(unavailableState)
+    })
+
+    first.unmount()
+
+    const second = renderHook(() => useBattery())
+
+    await waitFor(() => {
+      expect(second.result.current).toEqual(availableState)
+    })
+
+    expect(getBattery).toHaveBeenCalledTimes(2)
+  })
+
+  it('preserves the snapshot identity when an event changes no values', async () => {
+    const manager = new FakeBatteryManager()
+
+    mockGetBattery(() => Promise.resolve(manager))
+
+    const { result } = renderHook(() => useBattery())
+
+    await waitFor(() => {
+      expect(result.current).toEqual(availableState)
+    })
+
+    const snapshot = result.current
+
+    act(() => {
+      manager.dispatchEvent(new Event('levelchange'))
+    })
+
+    expect(result.current).toBe(snapshot)
+  })
+
+  it('connects a new subscriber to an in-flight battery request', async () => {
+    const manager = new FakeBatteryManager()
+    let resolveBattery!: (manager: FakeBatteryManager) => void
+    const batteryRequest = new Promise<FakeBatteryManager>((resolve) => {
+      resolveBattery = resolve
+    })
+    const getBattery = mockGetBattery(() => batteryRequest)
+
+    const first = renderHook(() => useBattery())
+    first.unmount()
+
+    const second = renderHook(() => useBattery())
+
+    await act(async () => {
+      resolveBattery(manager)
+      await batteryRequest
+    })
+
+    await waitFor(() => {
+      expect(second.result.current).toEqual(availableState)
+    })
+
+    expect(getBattery).toHaveBeenCalledTimes(1)
+  })
+})
