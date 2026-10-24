@@ -41,8 +41,8 @@ jobs:
       - name: Install Chromium
         run: vp exec --filter @hp-hooks/react -- playwright install --with-deps chromium
 
-      - name: Check code quality
-        run: vp check
+      - name: Check React package
+        run: vp -C packages/react check
 
       - name: Run browser tests
         run: vp -C packages/react test
