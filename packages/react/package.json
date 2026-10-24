@@ -1,6 +1,6 @@
 {
   "name": "@hp-hooks/react",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "A collection of reusable, type-safe hooks",
   "homepage": "https://github.com/phhien203/hp-hooks#readme",
   "bugs": {
