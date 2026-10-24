@@ -23,11 +23,64 @@ pnpm add @hp-hooks/react
 
 ## Available Hooks
 
-| Hook            | Description                                                    |
-| --------------- | -------------------------------------------------------------- |
-| `useMediaQuery` | Subscribe to CSS media query matches using native browser APIs |
+| Hook            | Description                                                      |
+| --------------- | ---------------------------------------------------------------- |
+| `useBattery`    | Subscribe to the device battery state when the browser allows it |
+| `useMediaQuery` | Subscribe to CSS media query matches using native browser APIs   |
 
 ## Usage
+
+### `useBattery`
+
+`useBattery` reads the browser's Battery Status API and updates when the battery
+level, charging state, or time estimates change.
+
+```tsx
+import { useBattery } from '@hp-hooks/react'
+
+export function BatteryIndicator() {
+  const battery = useBattery()
+
+  if (battery.loading) {
+    return <p>Reading battery status…</p>
+  }
+
+  if (!battery.supported || battery.level === null) {
+    return <p>Battery status is unavailable.</p>
+  }
+
+  const percentage = Math.round(battery.level * 100)
+
+  return (
+    <p>
+      {battery.charging ? 'Charging' : 'On battery'} · {percentage}%
+    </p>
+  )
+}
+```
+
+The hook returns a `BatteryState` object:
+
+| Property          | Type              | Description                                        |
+| ----------------- | ----------------- | -------------------------------------------------- |
+| `supported`       | `boolean`         | Whether battery information is available           |
+| `loading`         | `boolean`         | Whether the initial battery request is in progress |
+| `level`           | `number \| null`  | Charge level from `0` to `1`                       |
+| `charging`        | `boolean \| null` | Whether the device is charging                     |
+| `chargingTime`    | `number \| null`  | Seconds until full                                 |
+| `dischargingTime` | `number \| null`  | Seconds until empty                                |
+
+Time values may be `Infinity` when the browser cannot provide an estimate. The
+Battery Status API is not available in every browser. When it is unavailable or
+the request fails, `supported` and `loading` are `false` and the battery values
+are `null`.
+
+The hook is safe to render on the server. It begins with a loading snapshot and
+checks browser support after the component subscribes on the client. Multiple
+components share one battery connection, which is removed after the last
+subscriber unmounts.
+
+### `useMediaQuery`
 
 ```tsx
 import { useMediaQuery } from '@hp-hooks/react'
@@ -39,7 +92,7 @@ export function ResponsiveComponent() {
 }
 ```
 
-### Server-side rendering
+#### Server-side rendering
 
 The hook accepts an optional fallback result:
 
