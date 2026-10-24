@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install pnpm
+        run: npm install --global pnpm@10
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm --filter @hp-hooks/react exec playwright install --with-deps chromium
+
+      - name: Check code quality
+        run: pnpm exec vp check
+
+      - name: Run browser tests
+        run: pnpm exec vp -C packages/react test
+
+      - name: Build publishable library
+        run: pnpm exec vp -C packages/react pack
+
+      - name: Build playground
+        run: pnpm exec vp -C apps/playground build
+
+      - name: Inspect publishable package
+        working-directory: packages/react
+        run: npm pack --dry-run
