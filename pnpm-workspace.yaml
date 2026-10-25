@@ -12,6 +12,7 @@ catalog:
   typescript: 6.0.2
   vite: npm:@voidzero-dev/vite-plus-core@1.4.0
   vite-plus: 1.4.0
+  vitest-browser-react: 2.3.0
 overrides:
   vite@*: 'catalog:'
 peerDependencyRules:

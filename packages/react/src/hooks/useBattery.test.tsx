@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vite-plus/test'
-import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
+import { renderHook } from 'vitest-browser-react'
 
 import { useBattery } from './useBattery'
 
@@ -45,8 +45,6 @@ const originalGetBattery = Object.getOwnPropertyDescriptor(
 )
 
 afterEach(() => {
-  cleanup()
-
   if (originalGetBattery) {
     Object.defineProperty(navigator, 'getBattery', originalGetBattery)
   } else {
@@ -61,11 +59,9 @@ describe('useBattery', () => {
       value: undefined,
     })
 
-    const { result } = renderHook(() => useBattery())
+    const { result } = await renderHook(() => useBattery())
 
-    await waitFor(() => {
-      expect(result.current).toEqual(unavailableState)
-    })
+    await expect.poll(() => result.current).toEqual(unavailableState)
   })
 
   it('reports loading until the battery request resolves', async () => {
@@ -77,7 +73,7 @@ describe('useBattery', () => {
 
     mockGetBattery(() => batteryRequest)
 
-    const { result } = renderHook(() => useBattery())
+    const { result, act } = await renderHook(() => useBattery())
 
     expect(result.current).toEqual({
       supported: true,
@@ -93,9 +89,7 @@ describe('useBattery', () => {
       await batteryRequest
     })
 
-    await waitFor(() => {
-      expect(result.current).toEqual(availableState)
-    })
+    await expect.poll(() => result.current).toEqual(availableState)
   })
 
   it('returns the current battery state when the request resolves', async () => {
@@ -103,11 +97,9 @@ describe('useBattery', () => {
 
     mockGetBattery(() => Promise.resolve(manager))
 
-    const { result } = renderHook(() => useBattery())
+    const { result } = await renderHook(() => useBattery())
 
-    await waitFor(() => {
-      expect(result.current).toEqual(availableState)
-    })
+    await expect.poll(() => result.current).toEqual(availableState)
   })
 
   it('updates when the battery manager dispatches change events', async () => {
@@ -115,34 +107,33 @@ describe('useBattery', () => {
 
     mockGetBattery(() => Promise.resolve(manager))
 
-    const { result } = renderHook(() => useBattery())
+    const { result, act } = await renderHook(() => useBattery())
 
-    await waitFor(() => {
-      expect(result.current).toEqual(availableState)
-    })
+    await expect.poll(() => result.current).toEqual(availableState)
 
-    act(() => {
+    await act(() => {
       manager.level = 0.4
       manager.dispatchEvent(new Event('levelchange'))
     })
     expect(result.current.level).toBe(0.4)
 
-    act(() => {
+    await act(() => {
       manager.charging = false
       manager.dispatchEvent(new Event('chargingchange'))
     })
     expect(result.current.charging).toBe(false)
 
-    act(() => {
+    await act(() => {
       manager.chargingTime = Infinity
       manager.dispatchEvent(new Event('chargingtimechange'))
     })
     expect(result.current.chargingTime).toBe(Infinity)
 
-    act(() => {
+    await act(() => {
       manager.dischargingTime = 3_600
       manager.dispatchEvent(new Event('dischargingtimechange'))
     })
+
     expect(result.current.dischargingTime).toBe(3_600)
   })
 
@@ -152,20 +143,18 @@ describe('useBattery', () => {
     const removeEventListener = vi.spyOn(manager, 'removeEventListener')
     const getBattery = mockGetBattery(() => Promise.resolve(manager))
 
-    const first = renderHook(() => useBattery())
-    const second = renderHook(() => useBattery())
+    const first = await renderHook(() => useBattery())
+    const second = await renderHook(() => useBattery())
 
-    await waitFor(() => {
-      expect(second.result.current).toEqual(availableState)
-    })
+    await expect.poll(() => second.result.current).toEqual(availableState)
 
     expect(getBattery).toHaveBeenCalledTimes(1)
     expect(addEventListener).toHaveBeenCalledTimes(4)
 
-    first.unmount()
+    await first.unmount()
     expect(removeEventListener).not.toHaveBeenCalled()
 
-    second.unmount()
+    await second.unmount()
     expect(removeEventListener).toHaveBeenCalledTimes(4)
   })
 
@@ -179,8 +168,8 @@ describe('useBattery', () => {
 
     mockGetBattery(() => batteryRequest)
 
-    const battery = renderHook(() => useBattery())
-    battery.unmount()
+    const { unmount, act } = await renderHook(() => useBattery())
+    await unmount()
 
     await act(async () => {
       resolveBattery(manager)
@@ -202,19 +191,15 @@ describe('useBattery', () => {
         : Promise.resolve(manager)
     })
 
-    const first = renderHook(() => useBattery())
+    const first = await renderHook(() => useBattery())
 
-    await waitFor(() => {
-      expect(first.result.current).toEqual(unavailableState)
-    })
+    await expect.poll(() => first.result.current).toEqual(unavailableState)
 
-    first.unmount()
+    await first.unmount()
 
-    const second = renderHook(() => useBattery())
+    const second = await renderHook(() => useBattery())
 
-    await waitFor(() => {
-      expect(second.result.current).toEqual(availableState)
-    })
+    await expect.poll(() => second.result.current).toEqual(availableState)
 
     expect(getBattery).toHaveBeenCalledTimes(2)
   })
@@ -224,15 +209,13 @@ describe('useBattery', () => {
 
     mockGetBattery(() => Promise.resolve(manager))
 
-    const { result } = renderHook(() => useBattery())
+    const { result, act } = await renderHook(() => useBattery())
 
-    await waitFor(() => {
-      expect(result.current).toEqual(availableState)
-    })
+    await expect.poll(() => result.current).toEqual(availableState)
 
     const snapshot = result.current
 
-    act(() => {
+    await act(() => {
       manager.dispatchEvent(new Event('levelchange'))
     })
 
@@ -247,19 +230,17 @@ describe('useBattery', () => {
     })
     const getBattery = mockGetBattery(() => batteryRequest)
 
-    const first = renderHook(() => useBattery())
-    first.unmount()
+    const first = await renderHook(() => useBattery())
+    await first.unmount()
 
-    const second = renderHook(() => useBattery())
+    const second = await renderHook(() => useBattery())
 
-    await act(async () => {
+    await second.act(async () => {
       resolveBattery(manager)
       await batteryRequest
     })
 
-    await waitFor(() => {
-      expect(second.result.current).toEqual(availableState)
-    })
+    await expect.poll(() => second.result.current).toEqual(availableState)
 
     expect(getBattery).toHaveBeenCalledTimes(1)
   })
